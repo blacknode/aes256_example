@@ -10,7 +10,7 @@ static const char convert2y[] = {
     'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
     'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '[', ']'};
 
-/** Converts a character to its (base64) numnick value. */
+/** Converts a character to its (base64) value. */
 static const unsigned int convert2n[] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -34,63 +34,4 @@ void generate_iv(uint8_t *iv)
   srand(time(NULL));
   for (int i = 0; i < 16; i++)
     iv[i] = (uint8_t)convert2y[rand() % 63];
-}
-
-size_t to_buf(unsigned char *buf, unsigned char *str)
-{
-  int i, j, len;
-  uint32_t limb;
-  size_t buf_len;
-
-  len = strlen((char *)str);
-  buf_len = (len * (6 + 7)) / 8;
-
-  for (i = 0, j = 0, limb = 0; i + 3 < len; i += 4)
-  {
-    if (str[i] == '=' || str[i + 1] == '=' || str[i + 2] == '=' || str[i + 3] == '=')
-    {
-      if (str[i] == '=' || str[i + 1] == '=')
-      {
-        break;
-      }
-
-      if (str[i + 2] == '=')
-      {
-        limb =
-            ((uint32_t)convert2n[str[i]] << 6) |
-            ((uint32_t)convert2n[str[i + 1]]);
-        buf[j] = (unsigned char)(limb >> 4) & 0xff;
-        j++;
-      }
-      else
-      {
-        limb =
-            ((uint32_t)convert2n[str[i]] << 12) |
-            ((uint32_t)convert2n[str[i + 1]] << 6) |
-            ((uint32_t)convert2n[str[i + 2]]);
-        buf[j] = (unsigned char)(limb >> 10) & 0xff;
-        buf[j + 1] = (unsigned char)(limb >> 2) & 0xff;
-        j += 2;
-      }
-    }
-    else
-    {
-      limb =
-          ((uint32_t)convert2n[str[i]] << 18) |
-          ((uint32_t)convert2n[str[i + 1]] << 12) |
-          ((uint32_t)convert2n[str[i + 2]] << 6) |
-          ((uint32_t)convert2n[str[i + 3]]);
-
-      buf[j] = (unsigned char)(limb >> 16) & 0xff;
-      buf[j + 1] = (unsigned char)(limb >> 8) & 0xff;
-      buf[j + 2] = (unsigned char)(limb) & 0xff;
-      j += 3;
-    }
-  }
-
-  buf_len = j;
-
-  printf("buflen: %lu j: %d\n", buf_len, j);
-
-  return buf_len;
 }

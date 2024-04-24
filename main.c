@@ -16,12 +16,6 @@
     printf("\n");                       \
   }
 
-unsigned int padding_sizes[] = {
-    16, 15, 14, 13,
-    12, 11, 10, 9,
-    8, 7, 6, 5,
-    4, 3, 2, 1};
-
 uint8_t padding_blocks[] = {
     0x10,
     0x0f,
