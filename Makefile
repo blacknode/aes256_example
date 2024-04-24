@@ -1,10 +1,13 @@
 
 all: aes
 
-aes: aes256.o main.o b64.o
-	gcc -o aes aes256.o main.o b64.o
+aes: aes256.o main.o b64.o buf.o
+	gcc -o aes aes256.o main.o b64.o buf.o
 
-main.o: main.c aes256.h b64.h
+buf.o: buf.c buf.h
+	gcc -c buf.c -o buf.o
+
+main.o: main.c aes256.h b64.h buf.h
 	gcc -c main.c -o main.o
 
 aes256.o: aes256.c aes256.h
