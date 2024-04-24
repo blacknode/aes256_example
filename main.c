@@ -100,6 +100,7 @@ int main(int argc, char const *argv[])
   }
 
   printf("text len: %lu\n", textlen);
+  printf("TEXT TO ENC: %s\n", text);
   DUMP("MSJ", m, textlen);
   DUMP("KEY", k, keylen);
   DUMP("IV", iv, sizeof(iv));
@@ -116,7 +117,21 @@ int main(int argc, char const *argv[])
   uint8_t *b64dec = (uint8_t *)b64_decode(b64enc, strlen(b64enc));
   DUMP("ENC MSJ", mbuf, sizeof(mbuf));
   printf("BASE 64: %s\n", b64enc);
-  DUMP("BASE 64 DECODE", b64dec, strlen((char*)b64dec));
+  DUMP("BASE 64 DECODE", b64dec, strlen((char *)b64dec));
+
+  size_t t = strlen((char *)b64dec);
+  const uint8_t *const b64deccpy = b64dec;
+  uint8_t *iv_ex = b64dec + (t - 16);
+  b64dec = (uint8_t *)b64deccpy;
+  DUMP("IV EXTRACTED", iv_ex, 16);
+  DUMP("BASE 64 DECODE", b64dec, t - 16);
+  AES_init_ctx_iv(&dec_ctx, k, iv_ex);
+  AES_CBC_decrypt_buffer(&dec_ctx, b64dec, t - 16);
+  DUMP("DEC MSJ", b64dec, t - 16);
+
+  b64dec[t - 16] = '\0';
+
+  printf("RESULT: %s\n", (char *)b64dec);
 
   free(b64enc);
   free(b64dec);
