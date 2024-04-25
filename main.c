@@ -12,7 +12,11 @@
   {                                     \
     printf("%s: ", s);                  \
     for (int i = 0; i < (sz); i++)      \
+    {                                   \
+      if (buf[i] == 0x0)                \
+        break;                          \
       printf("%02x ", (uint8_t)buf[i]); \
+    }                                   \
     printf("\n");                       \
   }
 
@@ -85,15 +89,8 @@ int main(int argc, char const *argv[])
   memset(m + textlen, padding_blocks[tpad % AES_BLOCKLEN], tpad);
 
   textlen += tpad;
-  uint8_t *pos = (uint8_t *)strchr((char *)m, 0x0);
-  if (pos)
-  {
-    size_t l = pos - m;
-    m[l] = '\0';
-    printf("0x0 pos: %lu\n", l);
-  }
-
-  printf("text len: %lu\n", textlen);
+  size_t bulksize = strlen((char *)m);
+  printf("text len: %lu -- %lu\n", textlen, strlen((char *)m));
   printf("TEXT TO ENC: %s\n", text);
   DUMP("MSJ", m, textlen);
   DUMP("KEY", k, keylen);
@@ -101,7 +98,22 @@ int main(int argc, char const *argv[])
 
   struct AES_ctx enc_ctx, dec_ctx;
   AES_init_ctx_iv(&enc_ctx, k, iv);
-  AES_CBC_encrypt_buffer(&enc_ctx, m, textlen);
+  int blocks = bulksize / AES_BLOCKLEN;
+  int i = 0;
+  int p = 0;
+  while (i < blocks)
+  {
+    uint8_t block[AES_BLOCKLEN] = {0};
+    memcpy(block, m + p, AES_BLOCKLEN);
+    printf("block: %s\n", (char *)block);
+    printf("Encrypt block #%d\n", i + 1);
+    AES_CBC_encrypt_buffer(&enc_ctx, block, AES_BLOCKLEN);
+    memcpy(m + p, block, AES_BLOCKLEN);
+    p += AES_BLOCKLEN;
+    i++;
+  }
+
+  DUMP("M", m, textlen);
 
   uint8_t mbuf[textlen + 16];
   memcpy(mbuf, m, textlen);
