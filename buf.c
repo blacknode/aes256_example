@@ -28,10 +28,3 @@ static const unsigned int convert2n[] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-void generate_iv(uint8_t *iv)
-{
-  srand(time(NULL));
-  for (int i = 0; i < 16; i++)
-    iv[i] = (uint8_t)convert2y[rand() % 63];
-}

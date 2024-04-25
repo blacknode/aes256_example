@@ -1,6 +1,5 @@
 #include "aes256.h"
-#include "b64.h"
-#include "buf.h"
+#include "base64.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,12 +12,16 @@
     printf("%s: ", s);                  \
     for (int i = 0; i < (sz); i++)      \
     {                                   \
-      if (buf[i] == 0x0)                \
-        break;                          \
       printf("%02x ", (uint8_t)buf[i]); \
     }                                   \
     printf("\n");                       \
   }
+
+static const char convert2y[68] = {
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+    'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+    'x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '[', ']', '{', '}'};
 
 uint8_t padding_blocks[] = {
     0x10,
@@ -39,19 +42,52 @@ uint8_t padding_blocks[] = {
     0x01,
 };
 
-size_t calculate_padding(size_t);
+unsigned int randomnize()
+{
+  unsigned int number;
+  FILE *urandom = fopen("/dev/urandom", "r");
+  if (urandom)
+  {
+    fread(&number, 1, sizeof(number), urandom);
+    fclose(urandom);
+  }
+  return number;
+}
+
+void generate_iv(uint8_t *iv)
+{
+  srand(randomnize());
+  for (int i = 0; i < 16; i++)
+  {
+    int r = rand() % (sizeof(convert2y) - 1);
+    char c = convert2y[r];
+    c = c == 0 ? 'A' : c;
+    iv[i] = (uint8_t)c;
+  }
+}
 
 size_t calculate_padding(size_t textlen)
 {
   size_t remainder = textlen % AES_BLOCKLEN;
   if (remainder == 0)
-  {
     return AES_BLOCKLEN;
-  }
-  else
-  {
-    return AES_BLOCKLEN - remainder;
-  }
+  return AES_BLOCKLEN - remainder;
+}
+
+size_t pkcs7_padding(uint8_t *to, uint8_t *from, size_t len)
+{
+  size_t padding = calculate_padding(len);
+  memcpy(to, from, len);
+  memset(to + len, 'A', padding);
+
+  return padding;
+}
+
+void encriptar(uint8_t *m, uint8_t *k, uint8_t *iv, size_t bulksize)
+{
+  struct AES_ctx enc_ctx;
+  AES_init_ctx_iv(&enc_ctx, k, iv);
+  AES_CBC_encrypt_buffer(&enc_ctx, m, bulksize);
 }
 
 int main(int argc, char const *argv[])
@@ -67,80 +103,49 @@ int main(int argc, char const *argv[])
   if (!textlen || !keylen)
     return 0;
 
-  printf("Text len: %lu Key len: %lu\n", textlen, keylen);
-
   textlen = textlen > 496 ? 496 : textlen;
   keylen = keylen > 32 ? 32 : keylen;
 
-  uint8_t m[528] = {0};
-  uint8_t k[32] = {0};
-  uint8_t iv[16] = {0};
+  uint8_t m[528];
+  uint8_t k[32];
+  uint8_t iv[16];
 
   generate_iv(iv);
 
-  int tpad = calculate_padding(textlen);
-  int kpad = calculate_padding(keylen);
+  int pad_t = pkcs7_padding(m, (uint8_t *)text, textlen);
+  int pad_k = pkcs7_padding(k, (uint8_t *)key, keylen);
 
-  memcpy(k, key, keylen);
-  memset(k + keylen, padding_blocks[kpad % AES_BLOCKLEN], kpad);
-  keylen += kpad;
+  textlen += pad_t;
+  keylen += pad_k;
 
-  memcpy(m, text, textlen);
-  memset(m + textlen, padding_blocks[tpad % AES_BLOCKLEN], tpad);
+  DUMP("IV", iv, 16);
+  DUMP("A", m, textlen);
+  encriptar(m, k, iv, textlen);
+  DUMP("B", m, textlen);
+  memcpy(m + textlen, iv, 16);
+  textlen += 16;
+  DUMP("C", m, textlen);
+  printf("is multiplo? %lu\n", textlen % AES_BLOCKLEN);
 
-  textlen += tpad;
-  size_t bulksize = strlen((char *)m);
-  printf("text len: %lu -- %lu\n", textlen, strlen((char *)m));
-  printf("TEXT TO ENC: %s\n", text);
-  DUMP("MSJ", m, textlen);
-  DUMP("KEY", k, keylen);
-  DUMP("IV", iv, sizeof(iv));
+  size_t size = base64_encode(m, NULL, textlen, 0);
+  printf("SIZE: %lu\n", size);
+  uint8_t out[size];
+  base64_encode(m, out, textlen, 0);
+  out[size] = '\0';
+  printf("OUT: %s\n", (char *)out);
+  size_t fsize = base64_decode(out, NULL,  size);
+  uint8_t f[fsize];
+  base64_decode(out, f,  size);
+  DUMP("F", f, fsize);
+  // const uint8_t *const mm = m;
+  // char *b64 = b64_encode(mm, textlen);
+  // printf("BASE64: %s\n", b64);
+  // uint8_t *buf = b64_decode(b64, strlen(b64));
 
-  struct AES_ctx enc_ctx, dec_ctx;
-  AES_init_ctx_iv(&enc_ctx, k, iv);
-  int blocks = bulksize / AES_BLOCKLEN;
-  int i = 0;
-  int p = 0;
-  while (i < blocks)
-  {
-    uint8_t block[AES_BLOCKLEN] = {0};
-    memcpy(block, m + p, AES_BLOCKLEN);
-    printf("block: %s\n", (char *)block);
-    printf("Encrypt block #%d\n", i + 1);
-    AES_CBC_encrypt_buffer(&enc_ctx, block, AES_BLOCKLEN);
-    memcpy(m + p, block, AES_BLOCKLEN);
-    p += AES_BLOCKLEN;
-    i++;
-  }
+  // DUMP("D", buf, strlen((char*)buf));
 
-  DUMP("M", m, textlen);
-
-  uint8_t mbuf[textlen + 16];
-  memcpy(mbuf, m, textlen);
-  memcpy(mbuf + textlen, iv, 16);
-
-  char *b64enc = b64_encode(mbuf, sizeof(mbuf));
-  uint8_t *b64dec = (uint8_t *)b64_decode(b64enc, strlen(b64enc));
-  DUMP("ENC MSJ", mbuf, sizeof(mbuf));
-  printf("BASE 64: %s\n", b64enc);
-  DUMP("BASE 64 DECODE", b64dec, strlen((char *)b64dec));
-
-  size_t t = strlen((char *)b64dec);
-  const uint8_t *const b64deccpy = b64dec;
-  uint8_t *iv_ex = b64dec + (t - 16);
-  b64dec = (uint8_t *)b64deccpy;
-  DUMP("IV EXTRACTED", iv_ex, 16);
-  DUMP("BASE 64 DECODE", b64dec, t - 16);
-  AES_init_ctx_iv(&dec_ctx, k, iv_ex);
-  AES_CBC_decrypt_buffer(&dec_ctx, b64dec, t - 16);
-  DUMP("DEC MSJ", b64dec, t - 16);
-
-  b64dec[t - 16] = '\0';
-
-  printf("RESULT: %s\n", (char *)b64dec);
-
-  free(b64enc);
-  free(b64dec);
+  // free(b64);
+  // free(buf);
 
   return 0;
 }

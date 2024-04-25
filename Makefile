@@ -1,20 +1,17 @@
 
 all: aes
 
-aes: aes256.o main.o b64.o buf.o
-	gcc -o aes aes256.o main.o b64.o buf.o
+aes: aes256.o main.o base64.o
+	gcc -o aes aes256.o main.o base64.o
 
-buf.o: buf.c buf.h
-	gcc -c buf.c -o buf.o
-
-main.o: main.c aes256.h b64.h buf.h
+main.o: main.c aes256.h base64.h main.h
 	gcc -c main.c -o main.o
 
 aes256.o: aes256.c aes256.h
 	gcc -c aes256.c -o aes256.o
 
-b64.o: b64.c b64.h
-	gcc -c b64.c -o b64.o
+base64.o: base64.c base64.h
+	gcc -c base64.c -o base64.o
 
 clean:
 	rm -fr cifrar descifrar aes *.o
