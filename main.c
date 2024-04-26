@@ -78,16 +78,39 @@ size_t pkcs7_padding(uint8_t *to, uint8_t *from, size_t len)
 {
   size_t padding = calculate_padding(len);
   memcpy(to, from, len);
-  memset(to + len, 'A', padding);
+  memset(to + len, padding_blocks[len % AES_BLOCKLEN], padding);
 
   return padding;
 }
 
+int remove_pkcs7_padding(uint8_t *buf, size_t len)
+{
+  if (!buf)
+    return len;
+  int i = 0;
+  for (int j = 0; j < len; j++)
+  {
+    if (isprint(buf[j]))
+      i++;
+  }
+  if (i)
+    buf[i] = '\0';
+
+  return i;
+}
+
 void encriptar(uint8_t *m, uint8_t *k, uint8_t *iv, size_t bulksize)
 {
-  struct AES_ctx enc_ctx;
-  AES_init_ctx_iv(&enc_ctx, k, iv);
-  AES_CBC_encrypt_buffer(&enc_ctx, m, bulksize);
+  struct AES_ctx ctx;
+  AES_init_ctx_iv(&ctx, k, iv);
+  AES_CBC_encrypt_buffer(&ctx, m, bulksize);
+}
+
+void desencriptar(uint8_t *buf, uint8_t *k, uint8_t *iv, size_t len)
+{
+  struct AES_ctx ctx;
+  AES_init_ctx_iv(&ctx, k, iv);
+  AES_CBC_decrypt_buffer(&ctx, buf, len);
 }
 
 int main(int argc, char const *argv[])
@@ -125,7 +148,6 @@ int main(int argc, char const *argv[])
   memcpy(m + textlen, iv, 16);
   textlen += 16;
   DUMP("C", m, textlen);
-  printf("is multiplo? %lu\n", textlen % AES_BLOCKLEN);
 
   size_t size = base64_encode(m, NULL, textlen, 0);
   printf("SIZE: %lu\n", size);
@@ -133,19 +155,26 @@ int main(int argc, char const *argv[])
   base64_encode(m, out, textlen, 0);
   out[size] = '\0';
   printf("OUT: %s\n", (char *)out);
-  size_t fsize = base64_decode(out, NULL,  size);
+  size_t fsize = base64_decode(out, NULL, size);
   uint8_t f[fsize];
-  base64_decode(out, f,  size);
+  base64_decode(out, f, size);
   DUMP("F", f, fsize);
-  // const uint8_t *const mm = m;
-  // char *b64 = b64_encode(mm, textlen);
-  // printf("BASE64: %s\n", b64);
-  // uint8_t *buf = b64_decode(b64, strlen(b64));
 
-  // DUMP("D", buf, strlen((char*)buf));
+  uint8_t msg[fsize - 16];
+  uint8_t iv_extracted[16];
+  memcpy(msg, f, fsize - 16);
+  memcpy(iv_extracted, f + (fsize - 16), 16);
 
-  // free(b64);
-  // free(buf);
+  DUMP("IV EXTRACTED", iv_extracted, 16);
+  DUMP("MSG", msg, fsize - 16);
+
+  desencriptar(msg, k, iv_extracted, fsize - 16);
+
+  msg[fsize - 16] = '\0';
+
+  int sz = remove_pkcs7_padding(msg, fsize - 16);
+
+  printf("MSG DECRYPTED: %s LEN: %lu SZ: %d PREV SZ: %lu\n", (char *)msg, strlen((char*)msg), sz, fsize - 16);
 
   return 0;
 }
