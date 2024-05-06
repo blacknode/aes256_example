@@ -1,17 +1,27 @@
+CC=gcc
+CPPFLAGS = -I/opt/homebrew/Cellar/jansson/2.14/include -I/opt/homebrew/Cellar/pcre2/10.43/include
+LIBS = -L/opt/homebrew/Cellar/pcre2/10.43/lib -lpcre2-8
+
+SRC = \
+	main.c \
+	aes256.c \
+	base64.c \
+	pcre.c
+
+OBJS = ${SRC:%.c=%.o}
 
 all: aes
 
-aes: aes256.o main.o base64.o
-	gcc -o aes aes256.o main.o base64.o
+.c.o:
+	${CC} ${CFLAGS} ${CPPFLAGS} -c $< -o $@
 
-main.o: main.c aes256.h base64.h main.h
-	gcc -c main.c -o main.o
+aes: ${OBJS}
+	${CC} ${OBJS} ${LIBS} -o aes
 
+main.o: main.c aes256.h base64.h main.h pcre.h
 aes256.o: aes256.c aes256.h
-	gcc -c aes256.c -o aes256.o
-
 base64.o: base64.c base64.h
-	gcc -c base64.c -o base64.o
+pcre.o: pcre.c pcre.h
 
 clean:
 	rm -fr cifrar descifrar aes *.o
